@@ -5,7 +5,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from dotenv import load_dotenv
 from app.models.db import db
-from app.models import User, Make, Model, Car  # Import models for proper registration
+from app.models import User, Make, Model, Car  
 from app.web.common.common import register_blueprints
 from app.tasks.celery_app import init_celery
 
@@ -14,7 +14,6 @@ load_dotenv()
 def create_app():
     app = Flask(__name__)
     
-    # Core configuration
     app.config.update(
         SQLALCHEMY_DATABASE_URI=os.getenv('DATABASE_URL', 'sqlite:///cars.db'),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
@@ -23,13 +22,11 @@ def create_app():
         JWT_ACCESS_TOKEN_EXPIRES=False  # or set to timedelta for expiration
     )
 
-    # Initialize extensions
     db.init_app(app)
     Migrate(app, db)
     CORS(app)
     jwt = JWTManager(app)
 
-    # JWT error handlers
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
         return jsonify({'message': 'Token has expired'}), 401
@@ -42,7 +39,6 @@ def create_app():
     def missing_token_callback(error):
         return jsonify({'message': 'Authorization token is required'}), 401
 
-    # Global error handlers
     @app.errorhandler(400)
     def bad_request(error):
         return jsonify({'message': 'Bad request'}), 400
@@ -56,10 +52,9 @@ def create_app():
         db.session.rollback()
         return jsonify({'message': 'Internal server error'}), 500
 
-    # Register blueprints
+
     register_blueprints(app)
 
-    # Initialize Celery
     init_celery(app)
 
     return app
