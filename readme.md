@@ -3,8 +3,8 @@
 ## 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/FlaskCar.git
-cd FlaskCar
+git clone https://github.com/UmmeHani-25/BackendFlask.git
+cd BackendFlask
 ````
 
 ---
