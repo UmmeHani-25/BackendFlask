@@ -22,7 +22,10 @@ def create_app():
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(seconds=expires)
 
     db.init_app(app)
-    
+
+    with app.app_context():
+        db.create_all()
+
     migrate.init_app(app, db)
 
     JWTManager(app)
