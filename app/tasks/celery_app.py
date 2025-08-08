@@ -9,13 +9,13 @@ celery = Celery(
     'app',
     broker=os.getenv('CELERY_BROKER_URL'),
     backend=os.getenv('CELERY_RESULT_BACKEND'),
-    include=['app.tasks.tasks']
+    include=['app.tasks']
 )
 
 
 celery.conf.beat_schedule = {
     'sync_car_data': {
-        'task': 'app.tasks.tasks.sync_car_data',
+        'task': 'sync_car_data',
         'schedule': timedelta(minutes=10),  
     },  
 }

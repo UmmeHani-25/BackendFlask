@@ -1,50 +1,60 @@
 services:
   flask:
-    build: .
+    build:
+      context: .
     container_name: flask-app
-    env_file: .env
+    command: ./scripts/flask_run.sh
     ports:
       - "5000:5000"
-    volumes:
-      - .:/backendflask
+    env_file:
+      - .env
     depends_on:
-      - redis
       - mysql
-    working_dir: /backendflask
-    command: flask run --host=0.0.0.0 --port=5000
+      - redis
+    volumes:
+      - .:/flaskcar
     environment:
       FLASK_APP: app/app.py
+    networks:
+      - flask-network
 
-
-  worker:
-    build: .
-    container_name: flask-worker
-    env_file: .env
-    volumes:
-      - .:/backendflask
+  celery_worker:
+    build:
+      context: .
+    container_name: celery_worker
+    command: ./scripts/celery_worker.sh
+    env_file:
+      - .env
     depends_on:
       - redis
       - mysql
-    working_dir: /backendflask
-    command: celery -A app.tasks.celery_app.celery worker --loglevel=info
-
-  beat:
-    build: .
-    container_name: flask-beat
-    env_file: .env
     volumes:
-      - .:/backendflask
+      - .:/flaskcar
+    networks:
+      - flask-network
+
+  celery_beat:
+    build:
+      context: .
+    container_name: celery_beat
+    command: ./scripts/celery_beat.sh
+    env_file:
+      - .env
     depends_on:
       - redis
       - mysql
-    working_dir: /backendflask
-    command: celery -A app.tasks.celery_app.celery beat --loglevel=info
+    volumes:
+      - .:/flaskcar
+    networks:
+      - flask-network
 
   redis:
     image: redis:7-alpine
     container_name: redis
     ports:
       - "6379:6379"
+    networks:
+      - flask-network
 
   mysql:
     image: mysql:8
@@ -57,6 +67,12 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    networks:
+      - flask-network
 
 volumes:
   mysql_data:
+
+networks:
+  flask-network:
+    driver: bridge

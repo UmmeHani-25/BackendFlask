@@ -1,8 +1,8 @@
-from flask import Blueprint
+from flask_smorest import Api
+from app.web.users.api import users_bp
+from app.web.cars.api import cars_bp
 
 def register_blueprints(app):
-    from app.web.users.api import users_bp
-    from app.web.cars.api import cars_bp
-
-    app.register_blueprint(users_bp, url_prefix="/users")
-    app.register_blueprint(cars_bp, url_prefix="/cars")
+    api = Api(app)
+    api.register_blueprint(users_bp, url_prefix="/users")
+    api.register_blueprint(cars_bp, url_prefix="/cars")
