@@ -3,6 +3,7 @@ from app.models.db import db
 
 
 class User(db.Model):
+    
     ID_KEY = 'id'
     USERNAME_KEY = 'username'
     CREATED_AT_KEY = 'created_at'

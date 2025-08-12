@@ -1,6 +1,4 @@
-from marshmallow import Schema, fields, validate, validates_schema, ValidationError
-from app.models.db import db
-from app.models.cars import Make, CarModel
+from marshmallow import Schema, fields, validate
 
 
 class CarSchema(Schema):

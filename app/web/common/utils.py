@@ -1,7 +1,4 @@
-from flask import request, jsonify
-from marshmallow import ValidationError
-from sqlalchemy.exc import SQLAlchemyError
-from functools import wraps
+from flask import request
 from app.models.db import db
 
 def paginate(query):
@@ -11,7 +8,7 @@ def paginate(query):
 
 
 def validate_make_model(make_id, model_id):
-    from app.models.cars import Make, CarModel
+    
     make = Make.query.get(make_id)
     model = CarModel.query.get(model_id)
     return make and model and model.make_id == make.id

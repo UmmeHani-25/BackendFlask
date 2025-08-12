@@ -1,4 +1,4 @@
-from flask import Flask, app
+from flask import Flask
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from dotenv import load_dotenv
@@ -28,5 +28,3 @@ def create_app():
     register_blueprints(app)
       
     return app
-
-# changes made
