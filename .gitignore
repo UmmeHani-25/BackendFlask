@@ -36,6 +36,3 @@ dist/
 .cache/
 .coverage
 coverage.xml
-
-# migrations folder
-migrations
