@@ -3,7 +3,7 @@ services:
     build:
       context: .
     container_name: flask-app
-    command: ./scripts/flask_run.sh
+    command: ./scripts/entrypoint.sh
     ports:
       - "5000:5000"
     env_file:
@@ -12,7 +12,7 @@ services:
       - mysql
       - redis
     volumes:
-      - .:/flaskcar
+      - .:/backendflask
     environment:
       FLASK_APP: app/app.py
     networks:
@@ -29,7 +29,7 @@ services:
       - redis
       - mysql
     volumes:
-      - .:/flaskcar
+      - .:/backendflask
     networks:
       - flask-network
 
@@ -44,7 +44,7 @@ services:
       - redis
       - mysql
     volumes:
-      - .:/flaskcar
+      - .:/backendflask
     networks:
       - flask-network
 
@@ -63,8 +63,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: 1234
       MYSQL_DATABASE: flaskcar
-    ports:
-      - "3307:3306"
+    # ports:
+    #   - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
