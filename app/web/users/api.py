@@ -1,72 +1,60 @@
-from flask import Blueprint, request, jsonify
-from werkzeug.security import generate_password_hash, check_password_hash
-from marshmallow import ValidationError
+import logging
+from flask_smorest import Blueprint
 from sqlalchemy.exc import SQLAlchemyError
 from app.models.users import User
 from app.models.db import db
-from flask_jwt_extended import jwt_required
 from app.web.common.jwt import generate_token
+from bcrypt import hashpw, gensalt, checkpw
 from app.web.users.schemas import (
     UserRegisterSchema,
     UserLoginSchema,
-    UserSchema
+    UserLoginResponseSchema
 )
+
+logger = logging.getLogger(__name__)
 
 users_bp = Blueprint('users', __name__)
 
+
 @users_bp.route('/register', methods=['POST'])
-def register():
-    try:
-        data = UserRegisterSchema().load(request.json or {})
-    except ValidationError as e:
-        return jsonify({'message': 'Validation error', 'errors': e.messages}), 400
-
-    try:
-        existing = User.query.filter_by(username=data['username']).first()
-        if existing:
-            return jsonify({'message': 'User already exists'}), 409
-
-        # Validate password strength
-        if len(data['password']) < 6:
-            return jsonify({'message': 'Password must be at least 6 characters long'}), 400
-
-        user = User(
-            username=data['username'],
-            password_hash=generate_password_hash(data['password'])
-        )
-        db.session.add(user)
-        db.session.commit()
-
-        # Return user without password
-        result = UserSchema().dump(user)
-        return jsonify({
-            'message': 'User created successfully',
-            'user': result
-        }), 201
+@users_bp.arguments(UserRegisterSchema)
+def register(validated):
         
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        return jsonify({'message': 'Database error occurred'}), 500
+        if db.session.query(User).filter_by(username=validated['username']).first():
+            logger.warning(f"Username {validated['username']} already exists")
+            return {'message': 'Username already exists'}, 400
+
+        if len(validated['password']) < 6:
+            logger.warning("Password must be at least 6 characters long")
+            return {'message': 'Password must be at least 6 characters long'}, 400
+
+        hashed = hashpw(validated['password'].encode('utf-8'), gensalt())
+
+        user_data = {
+            'username': validated['username'],
+            'password_hash': hashed.decode('utf-8')
+        }
+
+        user = User(**user_data)
+        db.session.add(user)
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            logger.error("Database error occurred while registering user")
+
+        return user.to_json(), 201
 
 
 @users_bp.route('/login', methods=['POST'])
-def login():
-    try:
-        data = UserLoginSchema().load(request.json or {})
-    except ValidationError as e:
-        return jsonify({'message': 'Validation error', 'errors': e.messages}), 400
+@users_bp.arguments(UserLoginSchema)
+@users_bp.response(200, UserLoginResponseSchema)
+def login(validated):
+    user = db.session.query(User).filter_by(username=validated['username']).first()
+    if not user or not checkpw(validated['password'].encode('utf-8'), user.password_hash.encode('utf-8')):
+        logger.warning("Invalid username or password")
+        return {'message': 'Invalid username or password'}, 401
 
-    try:
-        user = User.query.filter_by(username=data['username']).first()
-        if not user or not check_password_hash(user.password_hash, data['password']):
-            return jsonify({'message': 'Invalid credentials'}), 401
+    user.token = generate_token(identity=user.id)
 
-        token = generate_token(identity=str(user.id))
-        return jsonify({
-            'message': 'Login successful',
-            'access_token': token,
-            'user': UserSchema().dump(user)
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'message': 'Login failed'}), 500
+    return user

@@ -1,66 +1,30 @@
-import os
-from flask import Flask, jsonify
-from flask_migrate import Migrate
-from flask_cors import CORS
+from flask import Flask
 from flask_jwt_extended import JWTManager
+from flask_migrate import Migrate
 from dotenv import load_dotenv
-from app.models.db import db
-from app.models import User, Make, Model, Car  
 from app.web.common.common import register_blueprints
-from app.tasks.celery_app import init_celery
+from app.config import Config
+from app.models.db import db
+from app.models.cars import Car
+from app.models.users import User
+import logging.config
+from app.logging_config import LOGGING_CONFIG
 
 load_dotenv()
 
+migrate = Migrate()
+
+logging.config.dictConfig(LOGGING_CONFIG)
+
 def create_app():
+
     app = Flask(__name__)
+    app.config.from_object(Config)
     
-    app.config.update(
-        SQLALCHEMY_DATABASE_URI=os.getenv('DATABASE_URL', 'sqlite:///cars.db'),
-        SQLALCHEMY_TRACK_MODIFICATIONS=False,
-        JWT_SECRET_KEY=os.getenv('JWT_SECRET_KEY', 'dev-secret-key'),
-        JWT_TOKEN_LOCATION=["headers"],
-        JWT_ACCESS_TOKEN_EXPIRES=False  # or set to timedelta for expiration
-    )
-
     db.init_app(app)
-    Migrate(app, db)
-    CORS(app)
-    jwt = JWTManager(app)
-
-    @jwt.expired_token_loader
-    def expired_token_callback(jwt_header, jwt_payload):
-        return jsonify({'message': 'Token has expired'}), 401
-
-    @jwt.invalid_token_loader
-    def invalid_token_callback(error):
-        return jsonify({'message': 'Invalid token'}), 401
-
-    @jwt.unauthorized_loader
-    def missing_token_callback(error):
-        return jsonify({'message': 'Authorization token is required'}), 401
-
-    @app.errorhandler(400)
-    def bad_request(error):
-        return jsonify({'message': 'Bad request'}), 400
-
-    @app.errorhandler(404)
-    def not_found(error):
-        return jsonify({'message': 'Resource not found'}), 404
-
-    @app.errorhandler(500)
-    def internal_error(error):
-        db.session.rollback()
-        return jsonify({'message': 'Internal server error'}), 500
-
+    migrate.init_app(app, db)
+    JWTManager(app)
 
     register_blueprints(app)
-
-    init_celery(app)
-
+      
     return app
-
-if __name__ == '__main__':
-    app = create_app()
-    with app.app_context():
-        db.create_all()  # Create tables if they don't exist
-    app.run(debug=True)

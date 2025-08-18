@@ -1,5 +1,6 @@
 from flask import request
 
+
 def paginate(query):
     page = int(request.args.get('page', 1))
     per_page = int(request.args.get('limit', 20))

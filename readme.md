@@ -3,8 +3,8 @@
 ## 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/FlaskCar.git
-cd FlaskCar
+git clone https://github.com/UmmeHani-25/BackendFlask.git
+cd BackendFlask
 ````
 
 ---
@@ -51,3 +51,25 @@ celery -A app.tasks.celery_app.celery beat --loglevel=info
 ## 7. Run the Flask App
 
 flask run
+
+
+# FLASK_APP=app/app.py
+# FLASK_ENV=development
+# DATABASE_URL=mysql+pymysql://root:1234@localhost/flaskcar
+# JWT_SECRET_KEY=K8v2P9x4mN3qL7tR5wJ1yA6cF0hB4uE9
+# JWT_ACCESS_TOKEN_EXPIRES=1800
+# CELERY_BROKER_URL=redis://localhost:6379/0
+# CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+
+# Docker env
+
+# FLASK_APP=app/app.py
+# FLASK_ENV=development
+# DATABASE_URL=mysql+pymysql://root:1234@mysql:3306/flaskcar
+# DB_HOST=localhost
+# DB_PORT=3307
+# JWT_SECRET_KEY=K8v2P9x4mN3qL7tR5wJ1yA6cF0hB4uE9
+# JWT_ACCESS_TOKEN_EXPIRES=1800
+# CELERY_BROKER_URL=redis://redis:6379/0
+# CELERY_RESULT_BACKEND=redis://redis:6379/0

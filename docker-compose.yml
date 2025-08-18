@@ -1,0 +1,78 @@
+services:
+  flask:
+    build:
+      context: .
+    container_name: flask-app
+    command: ./scripts/entrypoint.sh
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    depends_on:
+      - mysql
+      - redis
+    volumes:
+      - .:/backendflask
+    environment:
+      FLASK_APP: app/app.py
+    networks:
+      - flask-network
+
+  celery_worker:
+    build:
+      context: .
+    container_name: celery_worker
+    command: ./scripts/celery_worker.sh
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - mysql
+    volumes:
+      - .:/backendflask
+    networks:
+      - flask-network
+
+  celery_beat:
+    build:
+      context: .
+    container_name: celery_beat
+    command: ./scripts/celery_beat.sh
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - mysql
+    volumes:
+      - .:/backendflask
+    networks:
+      - flask-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - flask-network
+
+  mysql:
+    image: mysql:8
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: flaskcar
+    # ports:
+    #   - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - flask-network
+
+volumes:
+  mysql_data:
+
+networks:
+  flask-network:
+    driver: bridge

@@ -1,16 +1,19 @@
-# app/tasks/tasks.py
-
+import os
 import json
 import urllib.parse
 import requests
-from app.tasks.celery_app import celery
-from app.models.db import db
-from app.models.cars import Make, Model, Car
+import logging
 
-@celery.task(name='app.tasks.tasks.sync_car_data')
+from app.models.cars import Make, CarModel, Car
+from app.models.db import SessionLocal  
+from app.tasks.celery_app import celery
+
+logger = logging.getLogger(__name__)
+
+@celery.task(name='sync_car_data')
 def sync_car_data():
+    session = SessionLocal()  
     try:
-        # 1) Prepare the Back4App query
         where = urllib.parse.quote_plus(json.dumps({
             "Year": {"$gte": 2012, "$lte": 2022}
         }))
@@ -20,77 +23,58 @@ def sync_car_data():
         )
         headers = {
             'X-Parse-Application-Id': 'hlhoNKjOvEhqzcVAJ1lxjicJLZNVv36GdbboZj3Z',
-            'X-Parse-Master-Key':       'SNMJJF0CZZhTPhLDIqGhTlUNV9r60M2Z5spyWfXW'
+            'X-Parse-Master-Key': 'SNMJJF0CZZhTPhLDIqGhTlUNV9r60M2Z5spyWfXW'
         }
 
-        # 2) Fetch and parse JSON
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
-            print(f"Failed to fetch: HTTP {response.status_code}")
-            return "API request failed"
+            logger.error(f"Request failed with status code {response.status_code}")
+            return
 
-        data = response.json().get("results", [])
-        if not data:
-            print("Back4App returned no records.")
-            return "No data received from API"
+        results = response.json().get('results', [])
+        for result in results:
+            make_name = result.get('Make')
+            model_name = result.get('Model')
+            year = result.get('Year')
+            category = result.get('Category')
 
-        # 3) Show a sample for debugging
-        print("Sample data received:")
-        print(json.dumps(data[:3], indent=2))
-
-        count = 0
-        for item in data:
-            make_name  = item.get("Make")
-            model_name = item.get("Model")
-            year       = item.get("Year")
-            category   = item.get("Category")
-
-            if not (make_name and model_name and year):
+            if not all([make_name, model_name, year]):
                 continue
 
-            # 4) Get or create Make
-            make = Make.query.filter_by(name=make_name).first()
+            # Add Make
+            make = session.query(Make).filter_by(name=make_name).first()
             if not make:
                 make = Make(name=make_name)
-                db.session.add(make)
-                db.session.flush()       # populates make.id
+                session.add(make)
+                session.flush()  
 
-            # 5) Get or create Model (linked to Make)
-            model = Model.query.filter_by(
-                name=model_name,
-                make_id=make.id
-            ).first()
-            if not model:
-                model = Model(name=model_name, make_id=make.id)
-                db.session.add(model)
-                db.session.flush()      # populates model.id
+            # Add Model
+            car_model = session.query(CarModel).filter_by(name=model_name, make_id=make.id).first()
+            if not car_model:
+                car_model = CarModel(name=model_name, make_id=make.id)
+                session.add(car_model)
+                session.flush()
 
-            # 6) Avoid inserting duplicates
-            exists = Car.query.filter_by(
+            # Add Car
+            car = session.query(Car).filter_by(
                 make_id=make.id,
-                model_id=model.id,
+                model_id=car_model.id,
                 year=year
             ).first()
-            if exists:
-                continue
+            if not car:
+                car = Car(
+                    make_id=make.id,
+                    model_id=car_model.id,
+                    year=year,
+                    category=category or ""
+                )
+                session.add(car)
 
-            # 7) Create the Car record
-            car = Car(
-                make_id=make.id,
-                model_id=model.id,
-                year=year,
-                category=category
-            )
-            db.session.add(car)
-            count += 1
-
-        # 8) Commit everything in one go
-        db.session.commit()
-        print(f"Sync complete. Added {count} new cars.")
-        return f"Sync complete. Added {count} new cars."
+        session.commit()
+        logger.info(f"Imported {len(results)} car records.")
 
     except Exception as e:
-        # Catch-all to prevent silent failures
-        print("Error during sync:", str(e))
-        db.session.rollback()
-        return "Sync failed due to exception"
+        session.rollback()
+        logger.error(f"Error in sync_car_data: {e}")
+    finally:
+        session.close()
