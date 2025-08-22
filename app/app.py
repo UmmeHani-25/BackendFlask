@@ -1,30 +1,40 @@
-from flask import Flask
-from flask_jwt_extended import JWTManager
-from flask_migrate import Migrate
-from dotenv import load_dotenv
-from app.web.common.common import register_blueprints
-from app.config import Config
-from app.models.db import db
-from app.models.cars import Car
-from app.models.users import User
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 import logging.config
+from app.config import settings
 from app.logging_config import LOGGING_CONFIG
-
-load_dotenv()
-
-migrate = Migrate()
+from app.web.common.common import register_routers
 
 logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
 
-def create_app():
-
-    app = Flask(__name__)
-    app.config.from_object(Config)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting FASTAPI APP")
     
-    db.init_app(app)
-    migrate.init_app(app, db)
-    JWTManager(app)
+    yield
+    logger.info("Shutting down FASTAPI APP")
 
-    register_blueprints(app)
-      
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title=settings.API_TITLE,
+        version=settings.API_VERSION,
+        openapi_url="/api/openapi.json",
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        lifespan=lifespan,
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    register_routers(app)
     return app
+
+app = create_app()

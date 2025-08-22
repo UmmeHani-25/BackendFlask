@@ -1,24 +1,30 @@
 import os
+from pydantic_settings import BaseSettings
 
-class Config:
 
-    # Database configuration
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-
-    # JWT configuration
-    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 1800))  
-    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
-
-    # Celery configuration
-    CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')
-    CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND')
-
+class Settings(BaseSettings):
     
     # API configuration
-    API_TITLE = "Flask Car API"
-    API_VERSION = "1.0.0"
-    OPENAPI_VERSION = "3.0.2"
-    OPENAPI_URL_PREFIX = "/api/docs"
-    OPENAPI_SWAGGER_UI_PATH = "/swagger-ui"
-    OPENAPI_SWAGGER_UI_URL = "https://cdn.jsdelivr.net/npm/swagger-ui-dist/"
+    API_TITLE: str = "FastAPI Car Registration"
+    API_VERSION: str = "1.0.0"
+    API_DESCRIPTION: str = "A simple FastAPI project with MySQL"
+
+    # Database configuration
+    DATABASE_URL: str = os.getenv('DATABASE_URL')
+    
+    # JWT configuration
+    JWT_SECRET: str = os.getenv('JWT_SECRET_KEY')
+  
+    # Celery configuration
+    CELERY_BROKER_URL: str = os.getenv('CELERY_BROKER_URL')
+    CELERY_RESULT_BACKEND: str = os.getenv('CELERY_RESULT_BACKEND')
+
+    #  BACK4API CONFIGURATIONS
+    BACK4APP_APP_ID: str = os.getenv("BACK4APP_APP_ID")
+    BACK4APP_MASTER_KEY: str = os.getenv("BACK4APP_MASTER_KEY")
+    
+    class Config:
+        env_file = ".env"
+        extra = "ignore"
+
+settings = Settings()

@@ -1,4 +1,4 @@
-import os
+from app.config import settings
 from celery import Celery
 from dotenv import load_dotenv
 from datetime import timedelta
@@ -7,8 +7,8 @@ load_dotenv()
 
 celery = Celery(
     'app',
-    broker=os.getenv('CELERY_BROKER_URL'),
-    backend=os.getenv('CELERY_RESULT_BACKEND'),
+    broker=settings.CELERY_BROKER_URL,
+    backend=settings.CELERY_RESULT_BACKEND,
     include=['app.tasks']
 )
 
