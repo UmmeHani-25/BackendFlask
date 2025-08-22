@@ -13,8 +13,8 @@ DATABASE_URL = settings.DATABASE_URL
 # Async engine for FASTAPI WEB LAYER
 engine = create_async_engine(
     DATABASE_URL,
-    echo = True,
-    future = True,
+    pool_pre_ping=True,
+    future=True,
 )
 
 SessionLocal = async_sessionmaker(
@@ -31,7 +31,7 @@ async def get_db():
 # Sync Engine (Celery Worker)
 sync_engine = create_engine(
     DATABASE_URL.replace("+asyncmy", "+pymysql"),  
-    echo=True,
+    pool_pre_ping=True,
     future=True,
 )
 
