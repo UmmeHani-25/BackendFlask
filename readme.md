@@ -23,10 +23,9 @@ pip install -r requirements.txt
 ## 4. Initialize the Database
 
 
-flask db init
-flask db migrate
-flask db upgrade
-
+alembic init migrations
+alembic revision --autogenerate -m "Initial migration"
+alembic upgrade head
 
 ## 5. Start Redis Server
 
@@ -48,28 +47,6 @@ celery -A app.tasks.celery_app.celery worker --loglevel=info --pool=solo
 celery -A app.tasks.celery_app.celery beat --loglevel=info
 
 
-## 7. Run the Flask App
+## 7. Run the Fastapi App
 
-flask run
-
-
-# FLASK_APP=app/app.py
-# FLASK_ENV=development
-# DATABASE_URL=mysql+pymysql://root:1234@localhost/flaskcar
-# JWT_SECRET_KEY=K8v2P9x4mN3qL7tR5wJ1yA6cF0hB4uE9
-# JWT_ACCESS_TOKEN_EXPIRES=1800
-# CELERY_BROKER_URL=redis://localhost:6379/0
-# CELERY_RESULT_BACKEND=redis://localhost:6379/0
-
-
-# Docker env
-
-# FLASK_APP=app/app.py
-# FLASK_ENV=development
-# DATABASE_URL=mysql+pymysql://root:1234@mysql:3306/flaskcar
-# DB_HOST=localhost
-# DB_PORT=3307
-# JWT_SECRET_KEY=K8v2P9x4mN3qL7tR5wJ1yA6cF0hB4uE9
-# JWT_ACCESS_TOKEN_EXPIRES=1800
-# CELERY_BROKER_URL=redis://redis:6379/0
-# CELERY_RESULT_BACKEND=redis://redis:6379/0
+uvicorn app.app:app --reload

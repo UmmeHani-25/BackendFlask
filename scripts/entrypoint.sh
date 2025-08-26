@@ -1,28 +1,20 @@
 #!/bin/sh
+set -e
 
-echo "Loading MySQL..."
-until nc -z mysql 3306; do
-  sleep 1
-done
-echo " MySQL is up"
+echo "Applying DB migrations..."
+alembic upgrade head
 
-echo "Loading Redis..."
-until nc -z redis 6379; do
-  sleep 1
-done
-echo "Redis is up"
-
-# Run DB migrations
-if [ ! -d "migrations" ]; then
-    echo "No migrations folder found. Initializing..."
-    flask db init
+echo "Checking if DB is empty..."
+if ! mysql -hmysql -uroot -p1234 fastcar -e "SELECT 1 FROM cars LIMIT 1;" >/dev/null 2>&1; then
+    echo "Running initial car data sync..."
+    python -c "
+from app.tasks.tasks import sync_car_data_task
+sync_car_data_task.delay()
+print('Initial sync completed')
+"
+else
+    echo "DB already has car data, skipping sync."
 fi
 
-flask db migrate -m "Initial migration" || true
-flask db upgrade
-
-# Run initial sync
-python -c "from app.tasks.tasks import sync_car_data; sync_car_data()"
-
-# Start Flask
-exec flask run --host=0.0.0.0 --port=5000
+echo "Starting FastAPI..."
+uvicorn app.app:app --host 0.0.0.0 --port 8000 --reload

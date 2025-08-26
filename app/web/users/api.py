@@ -1,60 +1,51 @@
 import logging
-from flask_smorest import Blueprint
-from sqlalchemy.exc import SQLAlchemyError
-from app.models.users import User
-from app.models.db import db
-from app.web.common.jwt import generate_token
-from bcrypt import hashpw, gensalt, checkpw
-from app.web.users.schemas import (
-    UserRegisterSchema,
-    UserLoginSchema,
-    UserLoginResponseSchema
-)
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from app.models.users import User  
+from app.models.db import get_db   
+from app.web.common.jwt import create_access_token, create_refresh_token
+from app.web.users.schemas import UserCreate, UserLogin, UserResponse, TokenResponse
+
 
 logger = logging.getLogger(__name__)
 
-users_bp = Blueprint('users', __name__)
+router = APIRouter()
 
 
-@users_bp.route('/register', methods=['POST'])
-@users_bp.arguments(UserRegisterSchema)
-def register(validated):
-        
-        if db.session.query(User).filter_by(username=validated['username']).first():
-            logger.warning(f"Username {validated['username']} already exists")
-            return {'message': 'Username already exists'}, 400
+@router.post("/signup", response_model=UserResponse)
+async def signup(user: UserCreate, db: AsyncSession = Depends(get_db)):
+    # check if user already exists
+    result = await db.execute(select(User).where(User.username == user.username))
+    existing_user = result.scalars().first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail = "Username already taken")
 
-        if len(validated['password']) < 6:
-            logger.warning("Password must be at least 6 characters long")
-            return {'message': 'Password must be at least 6 characters long'}, 400
+    # create new user
+    new_user = User(username=user.username)
+    new_user.set_password(user.password)
 
-        hashed = hashpw(validated['password'].encode('utf-8'), gensalt())
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
 
-        user_data = {
-            'username': validated['username'],
-            'password_hash': hashed.decode('utf-8')
-        }
-
-        user = User(**user_data)
-        db.session.add(user)
-        try:
-            db.session.commit()
-        except SQLAlchemyError:
-            db.session.rollback()
-            logger.error("Database error occurred while registering user")
-
-        return user.to_json(), 201
+    return new_user
 
 
-@users_bp.route('/login', methods=['POST'])
-@users_bp.arguments(UserLoginSchema)
-@users_bp.response(200, UserLoginResponseSchema)
-def login(validated):
-    user = db.session.query(User).filter_by(username=validated['username']).first()
-    if not user or not checkpw(validated['password'].encode('utf-8'), user.password_hash.encode('utf-8')):
-        logger.warning("Invalid username or password")
-        return {'message': 'Invalid username or password'}, 401
+@router.post("/login", response_model=TokenResponse)
+async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.username == user.username))
+    db_user = result.scalars().first()
 
-    user.token = generate_token(identity=user.id)
+    if not db_user or not db_user.check_password(user.password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    return user
+    # generate tokens
+    access_token = create_access_token({"sub": db_user.username})
+    refresh_token = create_refresh_token({"sub": db_user.username})
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer"
+    )

@@ -36,3 +36,8 @@ dist/
 .cache/
 .coverage
 coverage.xml
+
+# celery beat schedule
+.celerybeat-schedule.bak
+.celerybeat-schedule.dir
+.celerybeat-schedule.dat

@@ -1,96 +1,113 @@
-from os import abort
-from flask_smorest import Blueprint
-from flask_jwt_extended import jwt_required
-from app.models.db import db
-from app.models.cars import Make, CarModel, Car
-from app.web.cars.schemas import CarSchema, CarCreateSchema, CarUpdateSchema
-from app.web.common.utils import paginate
 import logging
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from app.models.cars import Car
+from app.models.db import get_db
+from .schemas import CarCreate, CarUpdate, CarOut
+from app.web.common.jwt import get_current_user
+from app.web.common.utils import paginate, get_ids
+
 
 logger = logging.getLogger(__name__)
 
-cars_bp = Blueprint('cars', __name__)
+router = APIRouter()
 
 
-@cars_bp.route('/', methods=['GET'])
-@cars_bp.response(200, CarSchema(many=True))
-@jwt_required()
-def get_cars():
+# Create car
+@router.post("/", response_model=CarOut)
+async def create_car(
+    car: CarCreate,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    # Get make_id and model_id
+    make_id, model_id = await get_ids(db, car.make, car.model)
 
-    logger.info("Fetching all cars")
-    return paginate(db.session.query(Car)).items
-
-
-@cars_bp.route('/<int:car_id>', methods=['GET'])
-@cars_bp.response(200, CarSchema())
-@jwt_required()
-def get_car(car_id):
-
-    logger.info(f"Fetching car with ID: {car_id}")
-
-    car = db.session.get(Car, car_id)
-    if not car:
-        logger.warning(f"Car with ID {car_id} not found")
-    return car
-
-
-@cars_bp.route('/', methods=['POST'])
-@jwt_required()
-@cars_bp.arguments(CarCreateSchema) 
-@cars_bp.response(201, CarSchema())
-def create_car(data):
-    
-    logger.info("Creating a new car: %s", data)
-    
-    make = db.session.query(Make).filter_by(name=data['make']).first()
-    
-    model = db.session.query(CarModel).filter_by(name=data['model'], make_id=make.id).first()
-
-    car = Car(
-        make_id=make.id,
-        model_id=model.id,
-        year=data['year'],
-        category=data.get('category')
+    # Create car
+    db_car = Car(
+        make_id=make_id,
+        model_id=model_id,
+        year=car.year,
+        category=car.category
     )
-    
-    db.session.add(car)
-    db.session.commit()
-    
-    return car
+    db.add(db_car)
+    await db.commit()
+    await db.refresh(db_car)
+    return db_car
 
-@cars_bp.route('/<int:car_id>', methods=['PUT'])
-@jwt_required()
-@cars_bp.arguments(CarUpdateSchema(partial=True))
-@cars_bp.response(200, CarCreateSchema())
-def update_car(data, car_id):
+# Read cars with pagination
+@router.get("/", response_model=dict)
+async def list_cars(
+    page: int = 1,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),  
+):
+    query = select(Car)
+    items, pagination = await paginate(db, query, page, limit)
 
-    logger.info(f"Updating car with ID: {car_id} with data: {data}")
-
-    car = db.session.get(Car, car_id)
-    if not car:
-        logger.warning(f"Car with ID {car_id} not found")
-        return {"error": f"Car with ID {car_id} not found"}, 404
-
-    for key, val in data.items():
-        setattr(car, key, val)
-
-    db.session.commit()
-    return car
+    return {
+        "items": [CarOut.from_orm(car) for car in items],
+        "pagination": pagination,
+    }
 
 
-@cars_bp.route("/<int:car_id>", methods=["DELETE"])
-@jwt_required()
-@cars_bp.response(200, CarCreateSchema())
-def delete_car(car_id):
-    logger.info(f"Deleting car with ID: {car_id}")
-    car = db.session.get(Car, car_id)
-    
-    if not car:
-        logger.warning(f"Car with ID {car_id} not found")
-        return {"error": f"Car with ID {car_id} not found"}, 404
-    
-    db.session.delete(car)
-    db.session.commit()
-    logger.info(f"Car with ID {car_id} deleted successfully")
-    
-    return {"message": f"Car with ID {car_id} deleted successfully"}, 200
+# Get single car
+@router.get("/{car_id}", response_model=CarOut)
+async def get_car(
+    car_id: int,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    result = await db.execute(select(Car).where(Car.id == car_id))
+    db_car = result.scalars().first()
+    if not db_car:
+        raise HTTPException(status_code=404, detail="Car not found")
+    return db_car
+
+
+# Update car (PUT/PATCH)
+@router.put("/{car_id}", response_model=CarOut)
+@router.patch("/{car_id}", response_model=CarOut)
+async def update_car(
+    car_id: int,
+    car_update: CarUpdate,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    result = await db.execute(select(Car).where(Car.id == car_id))
+    db_car = result.scalars().first()
+    if not db_car:
+        raise HTTPException(status_code=404, detail="Car not found")
+
+    # Handle make/model if provided
+    if car_update.make and car_update.model:
+        db_car.make_id, db_car.model_id = await get_ids(db, car_update.make, car_update.model)
+
+    # Handle other fields
+    if car_update.year is not None:
+        db_car.year = car_update.year
+    if car_update.category is not None:
+        db_car.category = car_update.category
+
+    await db.commit()
+    await db.refresh(db_car)
+    return db_car
+
+
+# Delete car
+@router.delete("/{car_id}")
+async def delete_car(
+    car_id: int,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    result = await db.execute(select(Car).where(Car.id == car_id))
+    db_car = result.scalars().first()
+    if not db_car:
+        raise HTTPException(status_code=404, detail="Car not found")
+
+    await db.delete(db_car)
+    await db.commit()
+    return {"detail": "Car deleted"}
