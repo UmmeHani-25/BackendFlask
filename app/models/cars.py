@@ -1,33 +1,45 @@
-from app.models.db import db
+from sqlalchemy import (
+    Column, 
+    Integer, 
+    String, 
+    ForeignKey
+)
+from sqlalchemy.orm import relationship
+from app.models import Base
 
 
-class Make(db.Model):
+class Make(Base):
 
     __tablename__ = 'makes'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(64), unique=True, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(64), unique=True, nullable=False, index=True)
+
+    models = relationship("CarModel", back_populates="make")
+    cars = relationship("Car", back_populates="make")
 
 
-class CarModel(db.Model):
+class CarModel(Base):
 
     __tablename__ = 'models'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(64), nullable=False)
-    make_id = db.Column(db.Integer, db.ForeignKey('makes.id'), nullable=False)
-    make = db.relationship('Make', backref = db.backref('models', lazy = 'dynamic'))
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(64), nullable=False)
+    make_id = Column(Integer, ForeignKey('makes.id'), nullable=False, index=True)
+
+    make = relationship('Make', back_populates='models')
+    cars = relationship('Car', back_populates='model')
 
 
-class Car(db.Model):
+class Car(Base):
 
     __tablename__ = 'cars'
 
-    id = db.Column(db.Integer, primary_key=True)
-    make_id = db.Column(db.Integer, db.ForeignKey('makes.id'), nullable=False)
-    model_id = db.Column(db.Integer, db.ForeignKey('models.id'), nullable=False)
-    year = db.Column(db.Integer, nullable=False)
-    category = db.Column(db.String(64), nullable=False)
-
-    model = db.relationship('CarModel', foreign_keys=[model_id])
-    make = db.relationship('Make', foreign_keys=[make_id]) 
+    id = Column(Integer, primary_key=True, index=True)
+    make_id = Column(Integer, ForeignKey('makes.id'), nullable=False)
+    model_id = Column(Integer, ForeignKey('models.id'), nullable=False)
+    year = Column(Integer, nullable=False, index=True)
+    category = Column(String(64), nullable=False)
+    
+    make = relationship("Make", back_populates="cars")
+    model = relationship("CarModel", back_populates="cars")

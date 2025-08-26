@@ -1,22 +1,26 @@
-from marshmallow import Schema, fields
+from pydantic import BaseModel, constr
 
 
-class UserRegisterSchema(Schema):
-    username = fields.Str(required=True)
-    password = fields.Str(required=True)
+class UserCreate(BaseModel):
+    username: str
+    password: str
 
 
-class UserLoginSchema(Schema):
-    username = fields.Str(required=True)
-    password = fields.Str(required=True)
+class UserLogin(BaseModel):
+    username: str
+    password: str
 
 
-class UserLoginResponseSchema(Schema):
-    username = fields.Str(required=True)
-    token = fields.Str(dump_only=True)
+class UserResponse(BaseModel):
+    id: int 
+    username : str
 
+    class Config:
+        orm_mode = True
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
     
-class UserSchema(Schema):
-    id = fields.Int(dump_only=True)
-    username = fields.Str(dump_only=True)
-    created_at = fields.DateTime()
