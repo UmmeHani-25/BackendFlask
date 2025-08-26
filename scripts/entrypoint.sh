@@ -8,8 +8,8 @@ echo "Checking if DB is empty..."
 if ! mysql -hmysql -uroot -p1234 fastcar -e "SELECT 1 FROM cars LIMIT 1;" >/dev/null 2>&1; then
     echo "Running initial car data sync..."
     python -c "
-from app.tasks.tasks import sync_car_data
-sync_car_data()
+from app.tasks.tasks import sync_car_data_task
+sync_car_data_task.delay()
 print('Initial sync completed')
 "
 else

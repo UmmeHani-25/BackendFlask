@@ -3,8 +3,6 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     AsyncSession
 )
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from app.config import settings
 
 
@@ -26,16 +24,3 @@ SessionLocal = async_sessionmaker(
 async def get_db():
     async with SessionLocal() as session:
         yield session
-
-
-# Sync Engine (Celery Worker)
-sync_engine = create_engine(
-    DATABASE_URL.replace("+asyncmy", "+pymysql"),  
-    pool_pre_ping=True,
-    future=True,
-)
-
-SyncSessionLocal = sessionmaker(
-    bind=sync_engine,
-    expire_on_commit=False,
-)
