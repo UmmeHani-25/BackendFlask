@@ -7,7 +7,7 @@ import httpx
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import select
 
-from app.models.db import SessionLocal
+from app.models.db import SessionLocal, driver
 from app.models.cars import Make, CarModel, Car
 from app.tasks.celery_app import celery
 
@@ -19,9 +19,114 @@ def sync_car_data_task():
     asyncio.run(sync_car_data())
 
 
+# MySQL
+async def sync_car_data_mysql(session, results: list[dict]) -> int:
+
+    imported_count = 0
+
+    for r in results:
+        make_name = r.get("Make")
+        model_name = r.get("Model")
+        year = r.get("Year")
+        category = r.get("Category") or ""
+
+        if not (make_name and model_name and year):
+            continue
+
+        # --- Make ---
+        result = await session.execute(
+            select(Make).where(Make.name == make_name)
+        )
+        make = result.scalars().first()
+        if not make:
+            make = Make(name=make_name)
+            session.add(make)
+            await session.flush()
+
+        # --- Model ---
+        result = await session.execute(
+            select(CarModel).where(
+                CarModel.name == model_name,
+                CarModel.make_id == make.id
+            )
+        )
+        model = result.scalars().first()
+        if not model:
+            model = CarModel(name=model_name, make_id=make.id)
+            session.add(model)
+            await session.flush()
+
+        # --- Car ---
+        result = await session.execute(
+            select(Car).where(
+                Car.make_id == make.id,
+                Car.model_id == model.id,
+                Car.year == year
+            )
+        )
+        car = result.scalars().first()
+        if not car:
+            car = Car(
+                make_id=make.id,
+                model_id=model.id,
+                year=year,
+                category=category
+            )
+            session.add(car)
+            imported_count += 1
+
+    return imported_count
+
+
+# Neo4j
+async def sync_car_data_neo4j(results: list[dict]):
+    async with driver.session() as session_neo4j:
+        for r in results:
+            make_name = r.get("Make")
+            model_name = r.get("Model")
+            year = r.get("Year")
+            category = r.get("Category") or ""
+
+            if not (make_name and model_name and year):
+                continue
+
+            query = """
+            MERGE (m:Make {name: $make})
+
+            MERGE (mod:Model {name: $model})
+            MERGE (m)-[:HAS_MODEL]->(mod)
+
+            MERGE (y:Year {value: $year})
+            MERGE (mod)-[:AVAILABLE_IN]->(y)
+
+            WITH mod, $categories AS cats
+            UNWIND cats AS cat
+              MERGE (c:Category {name: cat})
+              MERGE (mod)-[:HAS_CATEGORY]->(c)
+            """
+
+            # Ensure categories is always a list
+            categories = []
+            if category:
+                if isinstance(category, str):
+                    categories = [c.strip() for c in category.split(",") if c.strip()]
+                elif isinstance(category, list):
+                    categories = category
+
+            await session_neo4j.run(
+                query,
+                make=make_name,
+                model=model_name,
+                year=year,
+                categories=categories,
+            )
+
+
+# Orchestrator
 async def sync_car_data():
-    async with SessionLocal() as session:  
+    async with SessionLocal() as session:
         try:
+            # Fetch from Back4App
             where = urllib.parse.quote_plus(
                 json.dumps({"Year": {"$gte": 2012, "$lte": 2022}})
             )
@@ -39,61 +144,17 @@ async def sync_car_data():
                 resp.raise_for_status()
                 results = resp.json().get("results", [])
 
-            imported_count = 0
-
-            for r in results:
-                make_name = r.get("Make")
-                model_name = r.get("Model")
-                year = r.get("Year")
-                category = r.get("Category") or ""
-
-                if not (make_name and model_name and year):
-                    continue
-
-                # --- Make ---
-                result = await session.execute(
-                    select(Make).where(Make.name == make_name)
-                )
-                make = result.scalars().first()
-                if not make:
-                    make = Make(name=make_name)
-                    session.add(make)
-                    await session.flush()
-
-                # --- Model ---
-                result = await session.execute(
-                    select(CarModel).where(
-                        CarModel.name == model_name,
-                        CarModel.make_id == make.id
-                    )
-                )
-                model = result.scalars().first()
-                if not model:
-                    model = CarModel(name=model_name, make_id=make.id)
-                    session.add(model)
-                    await session.flush()
-
-                # --- Car ---
-                result = await session.execute(
-                    select(Car).where(
-                        Car.make_id == make.id,
-                        Car.model_id == model.id,
-                        Car.year == year
-                    )
-                )
-                car = result.scalars().first()
-                if not car:
-                    car = Car(
-                        make_id=make.id,
-                        model_id=model.id,
-                        year=year,
-                        category=category
-                    )
-                    session.add(car)
-                    imported_count += 1
-
+            # Sync MySQL
+            imported_count = await sync_car_data_mysql(session, results)
             await session.commit()
-            logger.info("Imported %s new car records.", imported_count)
+
+            # Sync Neo4j
+            await sync_car_data_neo4j(results)
+
+            logger.info(
+                "Imported %s new car records into MySQL and synced Neo4j.",
+                imported_count,
+            )
 
         except (httpx.RequestError, SQLAlchemyError, Exception) as e:
             await session.rollback()

@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     #  BACK4API CONFIGURATIONS
     BACK4APP_APP_ID: str = os.getenv("BACK4APP_APP_ID")
     BACK4APP_MASTER_KEY: str = os.getenv("BACK4APP_MASTER_KEY")
+
+    # Neo4j
+    NEO4J_URI: str = os.getenv("NEO4J_URI")
+    NEO4J_USER: str = os.getenv("NEO4J_USER")
+    NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD")
     
     class Config:
         env_file = ".env"
