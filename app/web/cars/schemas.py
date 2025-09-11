@@ -29,3 +29,16 @@ class CarOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class QueryRequest(BaseModel):
+    query: str
+
+    @validator('query')
+    def validate_query(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Query must be a non-empty string')
+        return v.strip()
+    
+class QueryResponse(BaseModel):
+    response: str
