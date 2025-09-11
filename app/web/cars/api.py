@@ -4,9 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.cars import Car
 from app.models.db import get_db
-from .schemas import CarCreate, CarUpdate, CarOut
+from app.web.cars.schemas import CarCreate, CarUpdate, CarOut, QueryRequest, QueryResponse
 from app.web.common.jwt import get_current_user
 from app.web.common.utils import paginate, get_ids
+from app.agents.agent import Neo4jAgent
 
 
 logger = logging.getLogger(__name__)
@@ -111,3 +112,15 @@ async def delete_car(
     await db.delete(db_car)
     await db.commit()
     return {"detail": "Car deleted"}
+
+
+# Agent Endpoint
+@router.post("/agent/query", response_model=QueryResponse)
+async def agent_query(
+    query_request: QueryRequest,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    agent = Neo4jAgent()
+    response = await agent.agent_pipeline(query_request.query)
+    return QueryResponse(response=response)

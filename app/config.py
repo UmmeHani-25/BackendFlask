@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     NEO4J_URI: str = os.getenv("NEO4J_URI")
     NEO4J_USER: str = os.getenv("NEO4J_USER")
     NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD")
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY")
     
     class Config:
         env_file = ".env"
